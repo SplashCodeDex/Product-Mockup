@@ -1,0 +1,148 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{uid}
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - email: string (required, email format) - User email
+    //   - credits: int (required, >= 0) - Generation credits
+    //   - createdAt: timestamp (optional)
+    //
+    // Collection: /users/{uid}/assets/{assetId}
+    // Fields:
+    //   - id: string (required)
+    //   - uid: string (required)
+    //   - type: string (required, 'logo'|'product')
+    //   - name: string (required, 1-100 chars)
+    //   - data: string (required, base64)
+    //   - mimeType: string (required)
+    //   - createdAt: timestamp (optional)
+    //
+    // Collection: /users/{uid}/drafts/{draftId}
+    // Fields:
+    //   - id: string (required)
+    //   - uid: string (required)
+    //   - name: string (required, 1-100 chars)
+    //   - layers: string (required, serialized JSON)
+    //   - createdAt: timestamp (optional)
+    //
+    // Collection: /users/{uid}/mockups/{mockupId}
+    // Fields:
+    //   - id: string (required)
+    //   - uid: string (required)
+    //   - data: string (required, base64)
+    //   - prompt: string (required, 1-1000 chars)
+    //   - createdAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "splashdexstudios@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'credits']) &&
+             hasOnlyAllowedFields(['uid', 'email', 'credits', 'createdAt', 'role']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.credits is int && data.credits >= 0;
+    }
+
+    function isValidAsset(data) {
+      return hasRequiredFields(['id', 'uid', 'type', 'name', 'data', 'mimeType']) &&
+             hasOnlyAllowedFields(['id', 'uid', 'type', 'name', 'data', 'mimeType', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.type in ['logo', 'product'] &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.data is string && data.data.size() > 0 &&
+             data.mimeType is string;
+    }
+
+    function isValidDraft(data) {
+      return hasRequiredFields(['id', 'uid', 'name', 'layers']) &&
+             hasOnlyAllowedFields(['id', 'uid', 'name', 'layers', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.layers is string;
+    }
+
+    function isValidMockup(data) {
+      return hasRequiredFields(['id', 'uid', 'data', 'prompt']) &&
+             hasOnlyAllowedFields(['id', 'uid', 'data', 'prompt', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.data is string && data.data.size() > 0 &&
+             data.prompt is string && data.prompt.size() > 0 && data.prompt.size() <= 1000;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || isAdmin());
+      allow update: if isOwner(uid) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+
+      match /assets/{assetId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidAsset(request.resource.data);
+        allow update: if isOwner(uid) && isValidAsset(request.resource.data);
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+
+      match /drafts/{draftId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidDraft(request.resource.data);
+        allow update: if isOwner(uid) && isValidDraft(request.resource.data);
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+
+      match /mockups/{mockupId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidMockup(request.resource.data);
+        allow update: if isOwner(uid) && isValidMockup(request.resource.data);
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and credit balance",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "credits": { "type": "integer", "description": "Remaining generation credits" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "credits"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "A generated logo or product asset",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "type": { "type": "string", "enum": ["logo", "product"] },
+        "name": { "type": "string" },
+        "data": { "type": "string", "description": "Base64 image data" },
+        "mimeType": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "type", "name", "data", "mimeType"]
+    },
+    "Draft": {
+      "title": "Draft",
+      "description": "A saved mockup design draft",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "layers": { "type": "array", "description": "Serialized PlacedLayer array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "name", "layers"]
+    },
+    "Mockup": {
+      "title": "Mockup",
+      "description": "A generated photorealistic mockup result",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "data": { "type": "string", "description": "Base64 image data" },
+        "prompt": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "data", "prompt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users/{uid}/assets/{assetId}": {
+      "schema": "Asset",
+      "description": "User's generated assets"
+    },
+    "/users/{uid}/drafts/{draftId}": {
+      "schema": "Draft",
+      "description": "User's saved drafts"
+    },
+    "/users/{uid}/mockups/{mockupId}": {
+      "schema": "Mockup",
+      "description": "User's generated mockups"
+    }
+  }
+}
