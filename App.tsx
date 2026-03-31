@@ -43,7 +43,8 @@ import {
   ChevronRight,
   Maximize2,
   Wallet,
-  PlayCircle,
+  PlayCircle, 
+  Play,
   CreditCard,
   Coins,
   DownloadCloud,
@@ -68,7 +69,6 @@ import {
   Draft,
   UserProfile
 } from './types';
-import { useApiKey, ApiKeyProvider } from './hooks/useApiKey';
 import { launchImageLibraryAsync } from './services/imagePicker';
 import { NavigationContainer, createNativeStackNavigator, NativeStackScreenProps } from './components/Navigation';
 import { AsyncStorage } from './services/storage';
@@ -79,6 +79,7 @@ import { iapService, Product } from './services/iapService';
 import { generateId } from './services/utils';
 
 // --- Firebase ---
+import { INITIAL_CREDITS, GENERATION_COST, REWARD_AD_CREDITS, APP_NAME } from './constants';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { 
   onAuthStateChanged, 
@@ -214,7 +215,7 @@ const LoginScreen = () => {
        </TouchableOpacity>
        
        <Text className="text-zinc-600 text-xs mt-8 text-center px-8">
-          By continuing, you agree to our Terms of Service and Privacy Policy.
+          By continuing, you agree to our <TouchableOpacity onPress={() => Alert.alert("Terms of Service", "...")}><Text className="underline">Terms of Service</Text></TouchableOpacity> and <TouchableOpacity onPress={() => Alert.alert("Privacy Policy", "...")}><Text className="underline">Privacy Policy</Text></TouchableOpacity>.
        </Text>
     </View>
   );
@@ -264,7 +265,7 @@ const GlobalStateProvider = ({ children }: PropsWithChildren<{}>) => {
             const newUser: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
-              credits: 10, // Initial credits
+              credits: INITIAL_CREDITS, // Initial credits from constants
               createdAt: Date.now()
             };
             await setDoc(userRef, newUser);
@@ -408,19 +409,44 @@ const GlobalStateProvider = ({ children }: PropsWithChildren<{}>) => {
   const resetData = async () => {
     if (!auth.currentUser) return;
     const uid = auth.currentUser.uid;
-    // We'll just delete the subcollections
-    // In a real app, you'd use a batch or cloud function
     const batch = writeBatch(db);
     assets.forEach(a => batch.delete(doc(db, 'users', uid, 'assets', a.id)));
     savedMockups.forEach(m => batch.delete(doc(db, 'users', uid, 'mockups', m.id)));
     if (draft) batch.delete(doc(db, 'users', uid, 'drafts', draft.id));
-    batch.update(doc(db, 'users', uid), { credits: 10 });
+    batch.update(doc(db, 'users', uid), { credits: INITIAL_CREDITS });
     
     try {
       await batch.commit();
       Haptics.notificationAsync(NotificationFeedbackType.Success);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `users/${uid}/reset`);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!auth.currentUser) return;
+    const user = auth.currentUser;
+    const uid = user.uid;
+    
+    try {
+      // 1. Delete all user data
+      const batch = writeBatch(db);
+      assets.forEach(a => batch.delete(doc(db, 'users', uid, 'assets', a.id)));
+      savedMockups.forEach(m => batch.delete(doc(db, 'users', uid, 'mockups', m.id)));
+      if (draft) batch.delete(doc(db, 'users', uid, 'drafts', draft.id));
+      batch.delete(doc(db, 'users', uid));
+      
+      await batch.commit();
+      
+      // 2. Delete auth user
+      await user.delete();
+      Haptics.notificationAsync(NotificationFeedbackType.Success);
+    } catch (e: any) {
+      if (e.code === 'auth/requires-recent-login') {
+        Alert.alert("Re-authentication Required", "Please sign out and sign in again to delete your account.");
+      } else {
+        handleFirestoreError(e, OperationType.DELETE, `users/${uid}`);
+      }
     }
   };
 
@@ -463,6 +489,19 @@ const GlobalStateProvider = ({ children }: PropsWithChildren<{}>) => {
     return true;
   };
 
+  useEffect(() => {
+    // Register Ad and IAP callbacks for web sandbox
+    adService.onShowAd = (onComplete) => {
+        setAdState({ visible: true, onComplete });
+    };
+    iapService.onShowPurchase = (productId, onComplete) => {
+        setPurchaseState({ visible: true, productId, onComplete });
+    };
+  }, []);
+
+  const [adState, setAdState] = useState<{ visible: boolean, onComplete: (success: boolean) => void } | null>(null);
+  const [purchaseState, setPurchaseState] = useState<{ visible: boolean, productId: string, onComplete: (success: boolean) => void } | null>(null);
+
   if (!isAuthReady || (auth.currentUser && !isDataReady)) {
     return <SplashScreen />;
   }
@@ -476,11 +515,93 @@ const GlobalStateProvider = ({ children }: PropsWithChildren<{}>) => {
       user: userProfile,
       logout,
       assets, addAsset, removeAsset, 
-      savedMockups, saveMockup, resetData, loadTemplates,
+      savedMockups, saveMockup, resetData, deleteAccount, loadTemplates,
       credits, addCredits, spendCredits,
       draft, updateDraft, clearDraft
     }}>
       {children}
+      
+      {/* Web Sandbox Modals */}
+      {adState && (
+        <Modal visible={adState.visible} transparent animationType="fade">
+            <View className="flex-1 bg-black items-center justify-center p-6">
+                <View className="w-full max-w-md bg-zinc-900 rounded-3xl p-8 items-center shadow-2xl border border-zinc-800">
+                    <View className="w-16 h-16 bg-indigo-600/20 rounded-full items-center justify-center mb-6">
+                        <Play size={32} className="text-indigo-500" />
+                    </View>
+                    <Text className="text-white text-xl font-bold mb-2">Watching Sponsored Video</Text>
+                    <Text className="text-zinc-400 text-center mb-8">
+                        The reward will be granted after the video ends.
+                    </Text>
+                    
+                    <AdTimer onComplete={() => {
+                        adState.onComplete(true);
+                        setAdState(null);
+                    }} />
+                </View>
+            </View>
+        </Modal>
+      )}
+
+      {purchaseState && (
+        <Modal visible={purchaseState.visible} transparent animationType="slide">
+            <View className="flex-1 justify-end">
+                <TouchableOpacity 
+                    activeOpacity={1} 
+                    onPress={() => {
+                        purchaseState.onComplete(false);
+                        setPurchaseState(null);
+                    }}
+                    className="absolute inset-0 bg-black/60" 
+                />
+                <View className="bg-zinc-900 rounded-t-[32px] p-8 pb-12 border-t border-zinc-800">
+                    <View className="w-12 h-1 bg-zinc-800 rounded-full self-center mb-8" />
+                    
+                    <View className="flex-row items-center mb-6">
+                        <View className="w-12 h-12 bg-indigo-600/20 rounded-xl items-center justify-center mr-4">
+                            <CreditCard size={24} className="text-indigo-500" />
+                        </View>
+                        <View>
+                            <Text className="text-white text-lg font-bold">Confirm Purchase</Text>
+                            <Text className="text-zinc-400 text-sm">Secure payment via App Store</Text>
+                        </View>
+                    </View>
+
+                    <View className="bg-black/40 p-4 rounded-2xl mb-8 border border-zinc-800/50">
+                        <View className="flex-row justify-between items-center mb-2">
+                            <Text className="text-zinc-400">Product</Text>
+                            <Text className="text-white font-medium">{iapService.products.find(p => p.id === purchaseState.productId)?.title}</Text>
+                        </View>
+                        <View className="flex-row justify-between items-center">
+                            <Text className="text-zinc-400">Price</Text>
+                            <Text className="text-indigo-400 font-bold text-lg">{iapService.products.find(p => p.id === purchaseState.productId)?.price}</Text>
+                        </View>
+                    </View>
+
+                    <Button 
+                        onPress={() => {
+                            Haptics.notificationAsync(NotificationFeedbackType.Success);
+                            purchaseState.onComplete(true);
+                            setPurchaseState(null);
+                        }}
+                        className="bg-indigo-600 mb-4"
+                    >
+                        Pay Now
+                    </Button>
+                    <Button 
+                        variant="secondary" 
+                        onPress={() => {
+                            purchaseState.onComplete(false);
+                            setPurchaseState(null);
+                        }}
+                        className="border-zinc-800"
+                    >
+                        Cancel
+                    </Button>
+                </View>
+            </View>
+        </Modal>
+      )}
     </GlobalStateContext.Provider>
   );
 };
@@ -623,34 +744,73 @@ const ErrorModal = ({
   );
 };
 
+const AdTimer = ({ onComplete }: { onComplete: () => void }) => {
+    const [timeLeft, setTimeLeft] = useState(5);
+
+    useEffect(() => {
+        if (timeLeft === 0) {
+            onComplete();
+            return;
+        }
+        const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+        return () => clearTimeout(timer);
+    }, [timeLeft]);
+
+    return (
+        <View className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden mb-4">
+            <View 
+                className="bg-indigo-600 h-full" 
+                style={{ width: `${(5 - timeLeft) / 5 * 100}%` }} 
+            />
+            <View className="absolute inset-0 items-center justify-center">
+                <Text className="text-[8px] text-white font-bold">{timeLeft}s</Text>
+            </View>
+        </View>
+    );
+};
+
 const Header = ({ title, leftAction, rightAction }: { title: string, leftAction?: { icon: React.ReactNode, onPress: () => void }, rightAction?: { icon: React.ReactNode, onPress: () => void } }) => (
-  <View className="h-14 flex-row items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950 shrink-0 z-50">
-    <View className="flex-row items-center flex-1 pr-4 min-w-0">
-      {leftAction && (
+  <View className="pt-[env(safe-area-inset-top)] bg-zinc-950 border-b border-zinc-800 shrink-0 z-50">
+    <View className="h-14 flex-row items-center justify-between px-4">
+      <View className="flex-row items-center flex-1 pr-4 min-w-0">
+        {leftAction && (
+          <TouchableOpacity 
+            onPress={() => {
+              Haptics.impactAsync(ImpactFeedbackStyle.Light);
+              leftAction.onPress();
+            }} 
+            className="mr-4 p-1"
+          >
+            {leftAction.icon}
+          </TouchableOpacity>
+        )}
+        <Text numberOfLines={1} className="text-lg font-bold text-white flex-1">{title}</Text>
+      </View>
+      {rightAction ? (
         <TouchableOpacity 
           onPress={() => {
             Haptics.impactAsync(ImpactFeedbackStyle.Light);
-            leftAction.onPress();
+            rightAction.onPress();
           }} 
-          className="mr-4 p-1"
+          className="p-1"
         >
-          {leftAction.icon}
+          {rightAction.icon}
         </TouchableOpacity>
-      )}
-      <Text numberOfLines={1} className="text-lg font-bold text-white flex-1">{title}</Text>
+      ) : <View className="w-8" />}
     </View>
-    {rightAction ? (
-      <TouchableOpacity 
-        onPress={() => {
-          Haptics.impactAsync(ImpactFeedbackStyle.Light);
-          rightAction.onPress();
-        }}
-        className="p-1"
-      >
-        {rightAction.icon}
-      </TouchableOpacity>
-    ) : <View className="w-8" />}
   </View>
+);
+
+const ProcessingModal = ({ visible, message }: { visible: boolean, message: string }) => (
+  <Modal visible={visible} transparent animationType="fade">
+    <View className="flex-1 bg-black/80 items-center justify-center p-8">
+      <View className="bg-zinc-900 p-8 rounded-3xl items-center border border-zinc-800 shadow-2xl">
+        <ActivityIndicator size="large" color="#4f46e5" />
+        <Text className="text-white font-bold text-lg mt-6 text-center">{message}</Text>
+        <Text className="text-zinc-500 text-xs mt-2 text-center">Please wait while we process your request</Text>
+      </View>
+    </View>
+  </Modal>
 );
 
 const Button = ({ 
@@ -726,8 +886,8 @@ const StoreScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
     try {
         const rewardGranted = await adService.showRewardedAd();
         if (rewardGranted) {
-             addCredits(3);
-             Alert.alert("Reward Earned", "You received 3 credits!");
+             addCredits(REWARD_AD_CREDITS);
+             Alert.alert("Reward Earned", `You received ${REWARD_AD_CREDITS} credits!`);
         }
     } catch (e) {
         Alert.alert("Ad Error", "Video could not be loaded.");
@@ -783,7 +943,7 @@ const StoreScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
               </View>
               <View>
                  <Text className="text-white font-bold text-lg">Watch Video Ad</Text>
-                 <Text className="text-zinc-400">+3 Credits</Text>
+                 <Text className="text-zinc-400">+{REWARD_AD_CREDITS} Credits</Text>
               </View>
            </View>
            <View className="bg-indigo-600 px-3 py-1 rounded-full">
@@ -927,7 +1087,7 @@ const DashboardScreen = ({ navigation }: NativeStackScreenProps<RootStackParamLi
 }
 
 const SettingsScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'Settings'>) => {
-  const { resetData, loadTemplates, logout } = useGlobalState();
+  const { resetData, deleteAccount, loadTemplates, logout } = useGlobalState();
 
   const handleReset = () => {
     Alert.alert(
@@ -941,6 +1101,23 @@ const SettingsScreen = ({ navigation }: NativeStackScreenProps<RootStackParamLis
           onPress: () => {
             resetData();
             Haptics.notificationAsync(NotificationFeedbackType.Success);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure? This will permanently delete your account and all your data. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: () => {
+            deleteAccount();
           }
         }
       ]
@@ -1022,6 +1199,12 @@ const SettingsScreen = ({ navigation }: NativeStackScreenProps<RootStackParamLis
                    { text: "Sign Out", style: "destructive", onPress: logout }
                  ]);
                }} 
+               destructive
+             />
+             <SettingsItem 
+               icon={<Trash2 size={20} />} 
+               label="Delete Account" 
+               onPress={handleDeleteAccount} 
                destructive
              />
           </View>
@@ -1266,7 +1449,6 @@ const snapRotation = (rotation: number): number => {
 
 const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'Studio'>) => {
   const { assets, spendCredits, addCredits, draft, updateDraft, clearDraft, user } = useGlobalState();
-  const { validateApiKey } = useApiKey();
   
   // Initialize state from draft if available, otherwise defaults
   const [selectedProduct, setSelectedProduct] = useState<string | null>(
@@ -1278,6 +1460,7 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
   
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState("");
   
   // Error Handling State
   const [errorState, setErrorState] = useState<{
@@ -1404,8 +1587,10 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
   const performGeneration = async () => {
     if (!selectedProduct || layers.length === 0) return;
     setIsProcessing(true);
+    setProcessingMessage("Generating mockup...");
     try {
       const productAsset = assets.find(a => a.id === selectedProduct)!;
+      
       const resultUrl = await generateMockup(productAsset, layers.map(l => ({
         asset: assets.find(a => a.id === l.assetId)!,
         placement: l
@@ -1436,10 +1621,10 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
   const handleGenerate = async () => {
     if (!selectedProduct || layers.length === 0) return;
     
-    if (!spendCredits(1)) {
+    if (!spendCredits(GENERATION_COST)) {
         Alert.alert(
             "Insufficient Credits",
-            "You need 1 credit to generate a mockup.",
+            `You need ${GENERATION_COST} credit to generate a mockup.`,
             [
                 { text: "Cancel", style: 'cancel' },
                 { text: "Get Credits", onPress: () => navigation.navigate('Store') }
@@ -1448,7 +1633,6 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
         return;
     }
 
-    if (!(await validateApiKey())) return;
     await performGeneration();
   };
 
@@ -1584,6 +1768,7 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
 
   return (
     <SafeAreaView className="bg-black flex-1">
+      <ProcessingModal visible={isProcessing} message={processingMessage} />
       <Header 
         title="Studio" 
         leftAction={{ icon: <ChevronLeft color="white" />, onPress: navigation.goBack }} 
@@ -1771,13 +1956,13 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
 };
 
 const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'TryOn'>) => {
-  const { validateApiKey } = useApiKey();
   const { assets, spendCredits, addCredits, user } = useGlobalState();
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [selectedOverlay, setSelectedOverlay] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState("");
   const [cameraType, setCameraType] = useState<'back' | 'front'>('back');
 
   // Error Handling State
@@ -1890,6 +2075,7 @@ const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
 
   const performProcessing = async (compositeBase64: string) => {
     setIsProcessing(true);
+    setProcessingMessage("Processing AR composite...");
     try {
       const resultUrl = await generateRealtimeComposite(compositeBase64, "Make the overlay look like it's naturally printed on the surface in the photo.");
 
@@ -1922,10 +2108,10 @@ const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
         return;
     }
 
-    if (!spendCredits(1)) {
+    if (!spendCredits(GENERATION_COST)) {
         Alert.alert(
             "Insufficient Credits",
-            "You need 1 credit to perform AR Try-On.",
+            `You need ${GENERATION_COST} credit to perform AR Try-On.`,
             [
                 { text: "Cancel", style: 'cancel' },
                 { text: "Get Credits", onPress: () => navigation.navigate('Store') }
@@ -1934,8 +2120,7 @@ const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
         return;
     }
 
-    if (!(await validateApiKey())) return;
-
+    setProcessingMessage("Capturing frame...");
     setIsProcessing(true);
     Haptics.notificationAsync(NotificationFeedbackType.Success);
 
@@ -1980,7 +2165,7 @@ const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
       
     } catch (e) {
       console.error(e);
-      addCredits(1);
+      addCredits(GENERATION_COST);
       Alert.alert("Error", "Failed to capture AR frame. Credit refunded.");
       setIsProcessing(false);
     }
@@ -1993,13 +2178,14 @@ const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
   };
 
   const handleRefund = () => {
-    addCredits(1);
+    addCredits(GENERATION_COST);
     setErrorState({ visible: false, message: null, lastComposite: null });
     Haptics.impactAsync(ImpactFeedbackStyle.Light);
   };
 
   return (
     <View className="flex-1 bg-black relative">
+       <ProcessingModal visible={isProcessing} message={processingMessage} />
        <View 
          ref={containerRef}
          className="flex-1 relative overflow-hidden"
@@ -2115,7 +2301,8 @@ const ResultScreen = ({ navigation, route }: NativeStackScreenProps<RootStackPar
         <Image source={{ uri: result.imageUrl }} className="w-full h-full" resizeMode="contain" />
         <TouchableOpacity 
           onPress={() => navigation.goBack()}
-          className="absolute top-4 left-4 bg-black/50 p-2 rounded-full"
+          className="absolute left-4 bg-black/50 p-2 rounded-full"
+          style={{ top: 'calc(env(safe-area-inset-top) + 1rem)' }}
         >
           <ChevronLeft color="white" size={24} />
         </TouchableOpacity>
@@ -2174,23 +2361,21 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   return (
     <ErrorBoundary>
-      <ApiKeyProvider>
-        <GlobalStateProvider>
-          <StatusBar barStyle="light-content" />
-          <NavigationContainer>
-            <Stack.Navigator initialRouteName="Dashboard" screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="Dashboard" component={DashboardScreen} />
-              <Stack.Screen name="Assets" component={AssetsScreen} />
-              <Stack.Screen name="Studio" component={StudioScreen} />
-              <Stack.Screen name="Result" component={ResultScreen} />
-              <Stack.Screen name="Gallery" component={GalleryScreen} />
-              <Stack.Screen name="TryOn" component={TryOnScreen} />
-              <Stack.Screen name="Settings" component={SettingsScreen} />
-              <Stack.Screen name="Store" component={StoreScreen} />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </GlobalStateProvider>
-      </ApiKeyProvider>
+      <GlobalStateProvider>
+        <StatusBar barStyle="light-content" />
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName="Dashboard" screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Dashboard" component={DashboardScreen} />
+            <Stack.Screen name="Assets" component={AssetsScreen} />
+            <Stack.Screen name="Studio" component={StudioScreen} />
+            <Stack.Screen name="Result" component={ResultScreen} />
+            <Stack.Screen name="Gallery" component={GalleryScreen} />
+            <Stack.Screen name="TryOn" component={TryOnScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="Store" component={StoreScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </GlobalStateProvider>
     </ErrorBoundary>
   );
 }

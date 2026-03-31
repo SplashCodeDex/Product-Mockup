@@ -65,6 +65,7 @@ export interface GlobalContextType {
   savedMockups: GeneratedMockup[];
   saveMockup: (m: GeneratedMockup) => void;
   resetData: () => void;
+  deleteAccount: () => Promise<void>;
   loadTemplates: () => void;
   
   // Persistence

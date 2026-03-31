@@ -7,12 +7,14 @@
 interface AdNetworkInterface {
     initialize(): Promise<void>;
     showRewardedAd(): Promise<boolean>;
+    onShowAd?: (onComplete: (success: boolean) => void) => void;
 }
 
 // Service for mobile ad network integration (AdMob / AppLovin)
 // Implements a "Sandbox" pattern for web environments.
 class AdService implements AdNetworkInterface {
     private _isNative: boolean = false;
+    public onShowAd?: (onComplete: (success: boolean) => void) => void;
 
     constructor() {
         this._isNative = typeof window !== 'undefined' && (window as any).ReactNativeWebView;
@@ -37,9 +39,19 @@ class AdService implements AdNetworkInterface {
         }
 
         // Web Sandbox Logic:
-        // We do not "simulate" a 3-second wait (fake UI).
-        // We strictly return success for testing the reward loop, or throw if offline.
-        console.info('[AdService] Sandbox: Ad Request Filled & Completed');
+        // We use a callback to show a React-based ad component for better UX.
+        if (this.onShowAd) {
+            return new Promise((resolve) => {
+                this.onShowAd!((success) => {
+                    resolve(success);
+                });
+            });
+        }
+
+        // Fallback if no callback registered
+        console.info('[AdService] Sandbox: Loading Ad...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
         return true; 
     }
 }

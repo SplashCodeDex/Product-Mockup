@@ -15,6 +15,7 @@ export interface Product {
 interface IAPInterface {
     getProducts(): Promise<Product[]>;
     purchaseProduct(productId: string): Promise<PurchaseResult>;
+    onShowPurchase?: (productId: string, onComplete: (success: boolean) => void) => void;
 }
 
 interface PurchaseResult {
@@ -25,7 +26,8 @@ interface PurchaseResult {
 
 // Service for StoreKit / Google Play Billing
 class IAPService implements IAPInterface {
-    private readonly products: Product[] = [
+    public onShowPurchase?: (productId: string, onComplete: (success: boolean) => void) => void;
+    public readonly products: Product[] = [
          { id: 'credits_10', title: '10 Credits', price: '$0.99', credits: 10 },
          { id: 'credits_55', title: '55 Credits', price: '$4.99', credits: 55, popular: true },
          { id: 'credits_120', title: '120 Credits', price: '$9.99', credits: 120 },
@@ -45,8 +47,28 @@ class IAPService implements IAPInterface {
 
         console.info(`[IAPService] Processing purchase for ${productId}`);
 
-        // In production, we would validate the receipt with a backend server here.
-        // For this client-side architecture, we authorize the transaction immediately in Sandbox.
+        // Web Sandbox Logic:
+        // We use a callback to show a React-based purchase component for better UX.
+        if (this.onShowPurchase) {
+            const success = await new Promise<boolean>((resolve) => {
+                this.onShowPurchase!(productId, (success) => {
+                    resolve(success);
+                });
+            });
+
+            if (success) {
+                return {
+                    success: true,
+                    credits: product.credits,
+                    transactionId: crypto.randomUUID()
+                };
+            } else {
+                return { success: false, credits: 0 };
+            }
+        }
+
+        // Fallback if no callback registered
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
         return {
             success: true,

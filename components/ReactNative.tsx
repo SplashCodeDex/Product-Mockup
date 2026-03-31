@@ -104,7 +104,7 @@ export const View = forwardRef<HTMLDivElement, ViewProps>(({ className = '', sty
 // SafeAreaView: Adds padding for notches/home bars.
 export const SafeAreaView = ({ className = '', style, ...props }: ViewProps) => (
   <div 
-    className={`flex-1 pt-[var(--safe-top)] pb-[var(--safe-bottom)] flex flex-col ${className}`} 
+    className={`flex-1 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] flex flex-col ${className}`} 
     style={style} 
     {...props} 
   />
