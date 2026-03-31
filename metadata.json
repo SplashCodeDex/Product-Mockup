@@ -1,6 +1,6 @@
 {
-  "name": "Product Mockup",
-  "description": "A professional design studio that generates photo realistic product mock-ups from uploaded or AI created assets.",
+  "name": "DeXify",
+  "description": "AI-Powered Product Design Studio",
   "requestFramePermissions": [
     "camera"
   ]

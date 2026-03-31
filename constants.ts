@@ -8,8 +8,8 @@ export const INITIAL_CREDITS = 10;
 export const GENERATION_COST = 1;
 export const REWARD_AD_CREDITS = 3;
 
-export const APP_NAME = "SKU Foundry";
-export const APP_DESCRIPTION = "AI-Powered Product Mockup Studio";
+export const APP_NAME = "DeXify";
+export const APP_DESCRIPTION = "AI-Powered Product Design Studio";
 
 export const COLORS = {
   primary: '#4f46e5', // Indigo 600

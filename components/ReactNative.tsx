@@ -409,7 +409,7 @@ export const Share = {
     if (navigator.share) {
       try {
         const shareData: any = {
-          title: content.title || 'SKU Foundry',
+          title: content.title || 'DeXify',
           text: content.message
         };
 

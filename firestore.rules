@@ -80,7 +80,8 @@ service cloud.firestore {
              hasOnlyAllowedFields(['uid', 'email', 'credits', 'createdAt', 'role']) &&
              data.uid == request.auth.uid &&
              isValidEmail(data.email) &&
-             data.credits is int && data.credits >= 0;
+             data.credits is int && data.credits >= 0 &&
+             data.email.size() <= 256;
     }
 
     function isValidAsset(data) {
@@ -89,8 +90,8 @@ service cloud.firestore {
              data.uid == request.auth.uid &&
              data.type in ['logo', 'product'] &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.data is string && data.data.size() > 0 &&
-             data.mimeType is string;
+             data.data is string && data.data.size() > 0 && data.data.size() <= 10485760 && // 10MB limit
+             data.mimeType is string && data.mimeType.size() <= 100;
     }
 
     function isValidDraft(data) {
@@ -98,15 +99,20 @@ service cloud.firestore {
              hasOnlyAllowedFields(['id', 'uid', 'name', 'layers', 'createdAt']) &&
              data.uid == request.auth.uid &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.layers is string;
+             data.layers is string && data.layers.size() <= 1048576; // 1MB limit for layers JSON
     }
 
     function isValidMockup(data) {
       return hasRequiredFields(['id', 'uid', 'data', 'prompt']) &&
              hasOnlyAllowedFields(['id', 'uid', 'data', 'prompt', 'createdAt']) &&
              data.uid == request.auth.uid &&
-             data.data is string && data.data.size() > 0 &&
-             data.prompt is string && data.prompt.size() > 0 && data.prompt.size() <= 1000;
+             data.data is string && data.data.size() > 0 && data.data.size() <= 10485760 && // 10MB limit
+             data.prompt is string && data.prompt.size() > 0 && data.prompt.size() <= 2000;
+    }
+
+    function creditsUnchanged() {
+      return !('credits' in request.resource.data) ||
+             request.resource.data.credits == resource.data.credits;
     }
 
     // ===============================================================
@@ -116,7 +122,9 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || isAdmin());
-      allow update: if isOwner(uid) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow update: if isOwner(uid) && isValidUser(request.resource.data) && 
+                      creditsUnchanged() && 
+                      (request.resource.data.role == resource.data.role || isAdmin());
 
       match /assets/{assetId} {
         allow read: if isOwner(uid) || isAdmin();

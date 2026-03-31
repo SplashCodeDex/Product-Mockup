@@ -20,6 +20,7 @@ export const launchImageLibraryAsync = async (options: {
   mediaTypes: 'Images';
   allowsEditing?: boolean;
   quality?: number;
+  base64?: boolean;
 }): Promise<ImagePickerResult> => {
   return new Promise((resolve) => {
     const input = document.createElement('input');

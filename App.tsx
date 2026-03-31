@@ -191,7 +191,7 @@ const LoginScreen = () => {
        <View className="w-24 h-24 bg-indigo-600 rounded-3xl items-center justify-center mb-8 shadow-2xl shadow-indigo-500/20">
           <Package size={48} className="text-white" />
        </View>
-       <Text className="text-4xl font-black text-white mb-2">SKU Foundry</Text>
+       <Text className="text-4xl font-black text-white mb-2">{APP_NAME}</Text>
        <Text className="text-zinc-400 text-center mb-12 text-lg leading-6 px-4">
           Sign in to sync your designs across devices and access AI features.
        </Text>
@@ -230,7 +230,7 @@ const SplashScreen = () => {
              <Package size={48} className="text-white" />
           </View>
           <Text className="text-4xl font-black text-white mb-2 animate-swoop-in">
-             SKU Foundry
+             {APP_NAME}
           </Text>
           <Text className="text-zinc-400 text-lg animate-pop-in" style={{ animationDelay: '0.5s' }}>
              AI Product Visualization
@@ -468,25 +468,48 @@ const GlobalStateProvider = ({ children }: PropsWithChildren<{}>) => {
 
   const addCredits = async (amount: number) => {
     if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
-    const userRef = doc(db, 'users', uid);
     try {
-      await updateDoc(userRef, { credits: increment(amount) });
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch('/api/credits/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount })
+      });
+      if (!response.ok) throw new Error('Failed to add credits');
       Haptics.notificationAsync(NotificationFeedbackType.Success);
     } catch (e) {
-      handleFirestoreError(e, OperationType.UPDATE, `users/${uid}`);
+      console.error('Error adding credits:', e);
+      Alert.alert("Error", "Failed to add credits. Please try again.");
     }
   };
 
-  const spendCredits = (amount: number): boolean => {
+  const spendCredits = async (amount: number): Promise<boolean> => {
     if (!auth.currentUser || credits < amount) return false;
-    const uid = auth.currentUser.uid;
-    const userRef = doc(db, 'users', uid);
-    // Note: This is optimistic in the UI, but we should ideally use a transaction
-    updateDoc(userRef, { credits: increment(-amount) }).catch(e => {
-      handleFirestoreError(e, OperationType.UPDATE, `users/${uid}`);
-    });
-    return true;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch('/api/credits/spend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount })
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.error === 'Insufficient credits') {
+          Alert.alert("Insufficient Credits", "You don't have enough credits for this action.");
+        }
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Error spending credits:', e);
+      return false;
+    }
   };
 
   useEffect(() => {
@@ -886,7 +909,7 @@ const StoreScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
     try {
         const rewardGranted = await adService.showRewardedAd();
         if (rewardGranted) {
-             addCredits(REWARD_AD_CREDITS);
+             await addCredits(REWARD_AD_CREDITS);
              Alert.alert("Reward Earned", `You received ${REWARD_AD_CREDITS} credits!`);
         }
     } catch (e) {
@@ -901,7 +924,7 @@ const StoreScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
     try {
         const result = await iapService.purchaseProduct(product.id);
         if (result.success) {
-            addCredits(result.credits);
+            await addCredits(result.credits);
             Alert.alert("Purchase Successful", `You received ${result.credits} credits!`);
         }
     } catch (e) {
@@ -1036,7 +1059,7 @@ const DashboardScreen = ({ navigation }: NativeStackScreenProps<RootStackParamLi
           <View className="w-20 h-20 bg-indigo-900/30 rounded-3xl items-center justify-center mb-6 border border-indigo-500/30">
             <Package size={40} className="text-indigo-400" />
           </View>
-          <Text className="text-4xl font-black text-white text-center mb-2">SKU Foundry</Text>
+          <Text className="text-4xl font-black text-white text-center mb-2">{APP_NAME}</Text>
           <Text className="text-zinc-400 text-center text-lg px-4 leading-6">
             Create professional merchandise mockups in seconds with AI.
           </Text>
@@ -1168,8 +1191,8 @@ const SettingsScreen = ({ navigation }: NativeStackScreenProps<RootStackParamLis
           <View className="rounded-xl overflow-hidden mx-4 mb-6">
              <SettingsItem 
                icon={<Info size={20} />} 
-               label="About SKU Foundry" 
-               onPress={() => Alert.alert("About", "SKU Foundry v2.2\nProduction Build")} 
+               label={`About ${APP_NAME}`} 
+               onPress={() => Alert.alert("About", `${APP_NAME} v2.2\nProduction Build`)} 
              />
              <SettingsItem 
                icon={<DownloadCloud size={20} />} 
@@ -1235,9 +1258,18 @@ const AssetsScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
   });
 
   const handlePickImage = async () => {
-    const result = await launchImageLibraryAsync({ mediaTypes: 'Images' });
+    const result = await launchImageLibraryAsync({ mediaTypes: 'Images', base64: true });
     if (!result.canceled && result.assets) {
       const asset = result.assets[0];
+      
+      // Check size (approx 10MB limit)
+      const base64Data = asset.base64?.split(',')[1] || '';
+      const sizeInBytes = (base64Data.length * 3) / 4;
+      if (sizeInBytes > 10 * 1024 * 1024) {
+          Alert.alert("File Too Large", "Please select an image smaller than 10MB.");
+          return;
+      }
+
       addAsset({
         id: generateId(),
         type: activeTab,
@@ -1277,7 +1309,7 @@ const AssetsScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
     setShowPrompt(false);
     if (!prompt) return;
 
-    if (!spendCredits(1)) {
+    if (!(await spendCredits(1))) {
         Alert.alert(
             "Insufficient Credits",
             "You need 1 credit to generate an asset.",
@@ -1298,8 +1330,8 @@ const AssetsScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
     }
   };
 
-  const handleRefund = () => {
-    addCredits(1);
+  const handleRefund = async () => {
+    await addCredits(1);
     setErrorState({ visible: false, message: null, lastPrompt: null });
     Haptics.impactAsync(ImpactFeedbackStyle.Light);
   };
@@ -1621,7 +1653,7 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
   const handleGenerate = async () => {
     if (!selectedProduct || layers.length === 0) return;
     
-    if (!spendCredits(GENERATION_COST)) {
+    if (!(await spendCredits(GENERATION_COST))) {
         Alert.alert(
             "Insufficient Credits",
             `You need ${GENERATION_COST} credit to generate a mockup.`,
@@ -1640,8 +1672,8 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
     performGeneration();
   };
 
-  const handleRefund = () => {
-    addCredits(1);
+  const handleRefund = async () => {
+    await addCredits(1);
     setErrorState({ visible: false, message: null });
     Haptics.impactAsync(ImpactFeedbackStyle.Light);
   };
@@ -2108,7 +2140,7 @@ const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
         return;
     }
 
-    if (!spendCredits(GENERATION_COST)) {
+    if (!(await spendCredits(GENERATION_COST))) {
         Alert.alert(
             "Insufficient Credits",
             `You need ${GENERATION_COST} credit to perform AR Try-On.`,
@@ -2288,7 +2320,7 @@ const ResultScreen = ({ navigation, route }: NativeStackScreenProps<RootStackPar
   const handleShare = async () => {
     await Share.share({
       title: 'Check out this mockup!',
-      message: `Created with SKU Foundry: ${result.prompt}`,
+      message: `Created with ${APP_NAME}: ${result.prompt}`,
       url: result.imageUrl
     });
   };
