@@ -21,7 +21,7 @@
         "uid": { "type": "string" },
         "type": { "type": "string", "enum": ["logo", "product"] },
         "name": { "type": "string" },
-        "data": { "type": "string", "description": "Base64 image data" },
+        "data": { "type": "string", "description": "Storage download URL" },
         "mimeType": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
@@ -47,11 +47,11 @@
       "properties": {
         "id": { "type": "string" },
         "uid": { "type": "string" },
-        "data": { "type": "string", "description": "Base64 image data" },
+        "imageUrl": { "type": "string", "description": "Storage download URL" },
         "prompt": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "uid", "data", "prompt"]
+      "required": ["id", "uid", "imageUrl", "prompt"]
     }
   },
   "firestore": {

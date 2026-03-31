@@ -61,6 +61,7 @@ import {
   generateAsset, 
   generateRealtimeComposite 
 } from './services/geminiService';
+import { uploadImage, deleteImage } from './services/storageService';
 import { 
   Asset, 
   GeneratedMockup, 
@@ -344,9 +345,16 @@ const GlobalStateProvider = ({ children }: PropsWithChildren<{}>) => {
   const addAsset = async (a: Asset) => {
     if (!auth.currentUser) return;
     const uid = auth.currentUser.uid;
-    const assetRef = doc(db, 'users', uid, 'assets', a.id);
+    
     try {
-      await setDoc(assetRef, { ...a, uid, createdAt: Date.now() });
+      let finalData = a.data;
+      // If it's a base64 string, upload to storage
+      if (a.data.startsWith('data:')) {
+        finalData = await uploadImage(uid, 'assets', a.data);
+      }
+      
+      const assetRef = doc(db, 'users', uid, 'assets', a.id);
+      await setDoc(assetRef, { ...a, data: finalData, uid, createdAt: Date.now() });
       Haptics.notificationAsync(NotificationFeedbackType.Success);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `users/${uid}/assets/${a.id}`);
@@ -356,8 +364,12 @@ const GlobalStateProvider = ({ children }: PropsWithChildren<{}>) => {
   const removeAsset = async (id: string) => {
     if (!auth.currentUser) return;
     const uid = auth.currentUser.uid;
+    const asset = assets.find(a => a.id === id);
     const assetRef = doc(db, 'users', uid, 'assets', id);
     try {
+      if (asset && asset.data.startsWith('http')) {
+        await deleteImage(asset.data);
+      }
       await deleteDoc(assetRef);
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `users/${uid}/assets/${id}`);
@@ -367,9 +379,16 @@ const GlobalStateProvider = ({ children }: PropsWithChildren<{}>) => {
   const saveMockup = async (m: GeneratedMockup) => {
     if (!auth.currentUser) return;
     const uid = auth.currentUser.uid;
-    const mockupRef = doc(db, 'users', uid, 'mockups', m.id);
+    
     try {
-      await setDoc(mockupRef, { ...m, uid });
+      let finalUrl = m.imageUrl;
+      // If it's a base64 string, upload to storage
+      if (m.imageUrl.startsWith('data:')) {
+        finalUrl = await uploadImage(uid, 'mockups', m.imageUrl);
+      }
+      
+      const mockupRef = doc(db, 'users', uid, 'mockups', m.id);
+      await setDoc(mockupRef, { ...m, imageUrl: finalUrl, uid });
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `users/${uid}/mockups/${m.id}`);
     }
@@ -2312,8 +2331,8 @@ const ResultScreen = ({ navigation, route }: NativeStackScreenProps<RootStackPar
   const { saveMockup } = useGlobalState();
   const [showToast, setShowToast] = useState(false);
 
-  const handleSave = () => {
-    saveMockup(result);
+  const handleSave = async () => {
+    await saveMockup(result);
     setShowToast(true);
   };
 

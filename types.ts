@@ -9,7 +9,7 @@ export interface Asset {
   uid: string; // Firebase Auth UID
   type: 'logo' | 'product';
   name: string;
-  data: string; // Base64
+  data: string; // URL (formerly base64)
   mimeType: string;
   createdAt?: number;
 }
