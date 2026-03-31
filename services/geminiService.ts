@@ -23,7 +23,7 @@ export const generateMockup = async (
   try {
     // Create instance here to get latest key
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const model = 'gemini-3-pro-image-preview';
+    const model = 'gemini-3.1-flash-image-preview';
 
     // 1. Add Product Base
     const parts: any[] = [
@@ -71,6 +71,10 @@ export const generateMockup = async (
       contents: { parts },
       config: {
         responseModalities: [Modality.IMAGE],
+        imageConfig: {
+          imageSize: '1K',
+          aspectRatio: '1:1'
+        }
       },
     });
 
@@ -106,7 +110,7 @@ export const generateMockup = async (
 export const generateAsset = async (prompt: string, type: 'logo' | 'product'): Promise<string> => {
    try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const model = 'gemini-3-pro-image-preview';
+    const model = 'gemini-3.1-flash-image-preview';
     
     const enhancedPrompt = type === 'logo' 
         ? `A high-quality, professional vector-style logo design of a ${prompt}. Isolated on a pure white background. Minimalist and clean, single distinct logo.`
@@ -119,6 +123,10 @@ export const generateAsset = async (prompt: string, type: 'logo' | 'product'): P
         },
         config: {
             responseModalities: [Modality.IMAGE],
+            imageConfig: {
+                imageSize: '1K',
+                aspectRatio: '1:1'
+            }
         }
     });
 
@@ -154,7 +162,7 @@ export const generateRealtimeComposite = async (
   ): Promise<string> => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const model = 'gemini-3-pro-image-preview';
+      const model = 'gemini-3.1-flash-image-preview';
   
       const parts = [
         {
@@ -177,6 +185,10 @@ export const generateRealtimeComposite = async (
         contents: { parts },
         config: {
           responseModalities: [Modality.IMAGE],
+          imageConfig: {
+            imageSize: '1K',
+            aspectRatio: '1:1'
+          }
         },
       });
   

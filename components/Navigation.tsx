@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import React, { createContext, useContext, useState, useEffect, PropsWithChildren, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 
 // --- Types ---
 
@@ -141,7 +142,9 @@ export const createNativeStackNavigator = <ParamList extends object>() => {
 
       return (
         <div className="flex-1 w-full h-full relative overflow-hidden bg-black">
-          {ScreenToRender}
+          <AnimatePresence mode="wait">
+            {ScreenToRender}
+          </AnimatePresence>
         </div>
       );
     },
@@ -159,10 +162,15 @@ export const createNativeStackNavigator = <ParamList extends object>() => {
         const currentRoute = ctx.stack[ctx.stack.length - 1];
         if (currentRoute.name !== name) return null;
 
-        // Use absolute positioning to ensure the screen overlays/fills properly
-        // without affecting the document flow incorrectly.
         return (
-          <div className="absolute inset-0 w-full h-full animate-slide-in bg-black">
+          <motion.div 
+            key={currentRoute.key}
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="absolute inset-0 w-full h-full bg-black"
+          >
              <Component 
                 navigation={{ 
                   navigate: ctx.push, 
@@ -173,7 +181,7 @@ export const createNativeStackNavigator = <ParamList extends object>() => {
                 }} 
                 route={currentRoute} 
              />
-          </div>
+          </motion.div>
         );
     }
   };

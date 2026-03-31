@@ -7,6 +7,7 @@ import { Asset } from '../types';
 export const DEMO_ASSETS: Asset[] = [
   {
     id: 'demo-tshirt',
+    uid: 'demo',
     type: 'product',
     name: 'Classic White Tee',
     mimeType: 'image/svg+xml',
@@ -14,6 +15,7 @@ export const DEMO_ASSETS: Asset[] = [
   },
   {
     id: 'demo-logo',
+    uid: 'demo',
     type: 'logo',
     name: 'Foundry Logo',
     mimeType: 'image/svg+xml',

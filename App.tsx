@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import React, { useState, useRef, useEffect, useCallback, createContext, useContext, PropsWithChildren } from 'react';
+import React, { Component, useState, useRef, useEffect, useCallback, createContext, useContext, PropsWithChildren } from 'react';
 import { 
   View, 
   Text, 
@@ -127,10 +127,10 @@ const useGlobalState = () => {
 
 // --- Components ---
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
-  constructor(props: { children: React.ReactNode }) {
+class ErrorBoundary extends React.Component<any, any> {
+  constructor(props: any) {
     super(props);
-    this.state = { hasError: false, error: null };
+    (this as any).state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: any) {
@@ -142,13 +142,13 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 
   render() {
-    if (this.state.hasError) {
+    if ((this as any).state.hasError) {
       let displayError = "An unexpected error occurred.";
       try {
-        const parsed = JSON.parse(this.state.error.message);
+        const parsed = JSON.parse((this as any).state.error.message);
         if (parsed.error) displayError = parsed.error;
       } catch (e) {
-        displayError = this.state.error.message || displayError;
+        displayError = (this as any).state.error.message || displayError;
       }
 
       return (
@@ -165,7 +165,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       );
     }
 
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 
@@ -205,9 +205,8 @@ const LoginScreen = () => {
           ) : (
             <>
               <Image 
-                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+                source={{ uri: "https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" }} 
                 className="w-6 h-6 mr-3"
-                referrerPolicy="no-referrer"
               />
               <Text className="text-black font-bold text-lg">Continue with Google</Text>
             </>
@@ -847,9 +846,8 @@ const DashboardScreen = ({ navigation }: NativeStackScreenProps<RootStackParamLi
            {/* User Profile Info */}
            <View className="flex-row items-center">
               <Image 
-                src={auth.currentUser?.photoURL || `https://ui-avatars.com/api/?name=${user?.email || 'User'}&background=4f46e5&color=fff`} 
+                source={{ uri: auth.currentUser?.photoURL || `https://ui-avatars.com/api/?name=${user?.email || 'User'}&background=4f46e5&color=fff` }} 
                 className="w-10 h-10 rounded-full border border-zinc-800 mr-3"
-                referrerPolicy="no-referrer"
               />
               <View>
                  <Text className="text-white font-bold text-sm">Hello!</Text>
@@ -1267,7 +1265,7 @@ const snapRotation = (rotation: number): number => {
 };
 
 const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'Studio'>) => {
-  const { assets, spendCredits, addCredits, draft, updateDraft, clearDraft } = useGlobalState();
+  const { assets, spendCredits, addCredits, draft, updateDraft, clearDraft, user } = useGlobalState();
   const { validateApiKey } = useApiKey();
   
   // Initialize state from draft if available, otherwise defaults
@@ -1418,6 +1416,7 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
       navigation.navigate('Result', { 
         result: {
           id: generateId(),
+          uid: auth.currentUser?.uid || 'anonymous',
           imageUrl: resultUrl,
           prompt: "Composite Mockup",
           createdAt: Date.now()
@@ -1773,7 +1772,7 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
 
 const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'TryOn'>) => {
   const { validateApiKey } = useApiKey();
-  const { assets, spendCredits, addCredits } = useGlobalState();
+  const { assets, spendCredits, addCredits, user } = useGlobalState();
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -1899,6 +1898,7 @@ const TryOnScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 
       navigation.navigate('Result', { 
         result: {
           id: generateId(),
+          uid: auth.currentUser?.uid || 'anonymous',
           imageUrl: resultUrl,
           prompt: "AR Try-On Composite",
           createdAt: Date.now()
@@ -2169,14 +2169,16 @@ const GalleryScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList
 
 // --- Main App & Providers ---
 
-const Stack = createNativeStackNavigator<RootStackParamList>(export default function App() {
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+export default function App() {
   return (
     <ErrorBoundary>
       <ApiKeyProvider>
         <GlobalStateProvider>
           <StatusBar barStyle="light-content" />
           <NavigationContainer>
-            <Stack.Navigator initialRouteName="Dashboard" screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+            <Stack.Navigator initialRouteName="Dashboard" screenOptions={{ headerShown: false }}>
               <Stack.Screen name="Dashboard" component={DashboardScreen} />
               <Stack.Screen name="Assets" component={AssetsScreen} />
               <Stack.Screen name="Studio" component={StudioScreen} />
@@ -2191,6 +2193,4 @@ const Stack = createNativeStackNavigator<RootStackParamList>(export default func
       </ApiKeyProvider>
     </ErrorBoundary>
   );
-}
-);
 }
