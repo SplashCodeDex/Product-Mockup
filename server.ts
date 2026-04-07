@@ -7,6 +7,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import cors from "cors";
 import admin from "firebase-admin";
 import fs from "fs";
+import Stripe from "stripe";
 
 dotenv.config();
 
@@ -23,11 +24,63 @@ admin.initializeApp({
 
 const db = admin.firestore(firebaseConfig.firestoreDatabaseId);
 
+let stripeClient: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!stripeClient) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      console.warn('STRIPE_SECRET_KEY is not set. Payments will fail.');
+    }
+    // We initialize it anyway so the app doesn't crash on startup, but it will fail on use if key is invalid
+    stripeClient = new Stripe(key || 'sk_test_placeholder', { apiVersion: '2025-02-24.acacia' });
+  }
+  return stripeClient;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(cors());
+
+  // Stripe Webhook MUST be before express.json()
+  app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), async (req: any, res: any) => {
+    const sig = req.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const stripe = getStripe();
+
+    let event;
+    try {
+      if (!endpointSecret) throw new Error("Webhook secret not configured");
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } catch (err: any) {
+      console.error(`Webhook Error: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const uid = session.metadata?.uid;
+      const creditsToAdd = parseInt(session.metadata?.credits || '0', 10);
+
+      if (uid && creditsToAdd > 0) {
+        const userRef = db.collection('users').doc(uid);
+        await db.runTransaction(async (transaction) => {
+          const userDoc = await transaction.get(userRef);
+          if (!userDoc.exists) {
+            transaction.set(userRef, { credits: creditsToAdd });
+          } else {
+            const currentCredits = userDoc.data()?.credits || 0;
+            transaction.update(userRef, { credits: currentCredits + creditsToAdd });
+          }
+        });
+        console.log(`Added ${creditsToAdd} credits to user ${uid}`);
+      }
+    }
+
+    res.json({ received: true });
+  });
+
   app.use(express.json({ limit: '50mb' }));
 
   // --- API Routes ---
@@ -53,6 +106,47 @@ async function startServer() {
       res.status(401).json({ error: 'Invalid token' });
     }
   };
+
+  app.post("/api/create-checkout-session", authenticate, async (req: any, res: any) => {
+    try {
+      const { productId } = req.body;
+      const uid = req.user.uid;
+      const stripe = getStripe();
+
+      let amount = 0;
+      let credits = 0;
+      let name = "";
+
+      if (productId === 'credits_10') { amount = 99; credits = 10; name = "10 Credits"; }
+      else if (productId === 'credits_50') { amount = 399; credits = 50; name = "50 Credits"; }
+      else if (productId === 'credits_100') { amount = 699; credits = 100; name = "100 Credits"; }
+      else { return res.status(400).json({ error: "Invalid product" }); }
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: { name },
+              unit_amount: amount,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.origin}/store?success=true&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${req.headers.origin}/store?canceled=true`,
+        client_reference_id: uid,
+        metadata: { credits: credits.toString(), uid },
+      });
+
+      res.json({ id: session.id, url: session.url });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
 
   app.post("/api/credits/add", authenticate, async (req: any, res: any) => {
     try {
