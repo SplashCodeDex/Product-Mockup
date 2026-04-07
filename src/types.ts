@@ -56,25 +56,42 @@ export interface LoadingState {
   message: string;
 }
 
-export interface GlobalContextType {
-  user: UserProfile | null;
-  logout: () => Promise<void>;
-  assets: Asset[];
-  addAsset: (a: Asset) => void;
-  removeAsset: (id: string) => void;
-  savedMockups: GeneratedMockup[];
-  saveMockup: (m: GeneratedMockup) => void;
-  resetData: () => void;
-  deleteAccount: () => Promise<void>;
-  loadTemplates: () => void;
-  
-  // Persistence
-  draft: Draft | null;
-  updateDraft: (d: Partial<Draft>) => void;
-  clearDraft: () => void;
+export type RootStackParamList = {
+  Dashboard: undefined;
+  Assets: undefined;
+  Studio: undefined;
+  Result: { result: GeneratedMockup };
+  Gallery: undefined;
+  TryOn: undefined;
+  Settings: undefined;
+  Store: undefined;
+};
 
-  // Economy
-  credits: number;
-  addCredits: (amount: number) => void;
-  spendCredits: (amount: number) => boolean;
+export interface AuthContextType {
+  user: UserProfile | null;
+  isAuthReady: boolean;
+  logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
+
+export interface EconomyContextType {
+  credits: number;
+  addCredits: (amount: number) => Promise<void>;
+  spendCredits: (amount: number) => Promise<boolean>;
+}
+
+export interface DataContextType {
+  isDataReady: boolean;
+  assets: Asset[];
+  addAsset: (a: Asset) => Promise<void>;
+  removeAsset: (id: string) => Promise<void>;
+  savedMockups: GeneratedMockup[];
+  saveMockup: (m: GeneratedMockup) => Promise<void>;
+  draft: Draft | null;
+  updateDraft: (d: Partial<Draft>) => Promise<void>;
+  clearDraft: () => Promise<void>;
+  loadTemplates: () => Promise<void>;
+  resetData: () => Promise<void>;
+}
+
+export interface GlobalContextType extends AuthContextType, EconomyContextType, DataContextType {}
