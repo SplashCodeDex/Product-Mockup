@@ -236,7 +236,7 @@ async function startServer() {
       Layout Guidance based on user's rough placement on canvas:
       ${layoutHints}
 
-      System Task: Composite the provided logo images (images 2-${layers.length + 1}) onto the first image (the product) to create a realistic product mockup. 
+      System Task: Composite the provided logo images (images 2-${layers.length + 1}) onto the first image (the product) to create a realistic DeXify mockup. 
       Follow the Layout Guidance for positioning if provided, but prioritize realistic surface warping, lighting, and perspective blending.
       Output ONLY the resulting image.
       `;
