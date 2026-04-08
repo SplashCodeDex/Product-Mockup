@@ -1645,7 +1645,7 @@ const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList,
       const resultUrl = await generateMockup(productAsset, layers.map(l => ({
         asset: assets.find(a => a.id === l.assetId)!,
         placement: l
-      })), "Create a realistic product mockup.");
+      })), "Create a realistic DeXify mockup.");
       
       Haptics.notificationAsync(NotificationFeedbackType.Success);
       setErrorState({ visible: false, message: null });
