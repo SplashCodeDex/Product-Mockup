@@ -127,17 +127,26 @@ export const AssetsScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
             <Text className="text-indigo-400 font-bold">Generate AI</Text>
           </TouchableOpacity>
 
-          {filteredAssets.map(asset => (
-            <View key={asset.id} className="w-[48%] aspect-square bg-zinc-900 rounded-2xl mb-4 overflow-hidden border border-zinc-800 relative">
-              <Image source={{ uri: asset.data }} className="w-full h-full" resizeMode="contain" />
-              <TouchableOpacity 
-                onPress={() => removeAsset(asset.id)}
-                className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full items-center justify-center"
-              >
-                <Trash2 size={16} className="text-white" />
-              </TouchableOpacity>
-            </View>
-          ))}
+          {/* Skeleton Loader */}
+          {!useData().isDataReady ? (
+            <>
+              {[1, 2, 3, 4].map(i => (
+                <View key={`skeleton-${i}`} className="w-[48%] aspect-square bg-zinc-900 rounded-2xl mb-4 overflow-hidden animate-pulse" />
+              ))}
+            </>
+          ) : (
+            filteredAssets.map(asset => (
+              <View key={asset.id} className="w-[48%] aspect-square bg-zinc-900 rounded-2xl mb-4 overflow-hidden border border-zinc-800 relative">
+                <Image source={{ uri: asset.data }} className="w-full h-full" resizeMode="contain" />
+                <TouchableOpacity 
+                  onPress={() => removeAsset(asset.id)}
+                  className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full items-center justify-center"
+                >
+                  <Trash2 size={16} className="text-white" />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
 
