@@ -22,7 +22,7 @@ const getBase64Data = (dataUrl: string): string => {
 };
 
 /**
- * Generates a product mockup by compositing multiple logos onto a product image.
+ * Generates a DeXify mockup by compositing multiple logos onto a product image.
  */
 export const generateMockup = async (
   product: Asset,
