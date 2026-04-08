@@ -35,6 +35,7 @@ export const StoreScreen = ({ navigation }: NativeStackScreenProps<RootStackPara
     };
   }, []);
 
+  // TODO: Replace this simulated ad flow with a real rewarded video ad integration.
   const handleWatchAd = async () => {
     setLoadingId('ad');
     try {
@@ -148,9 +149,10 @@ export const StoreScreen = ({ navigation }: NativeStackScreenProps<RootStackPara
                     <View className="w-16 h-16 bg-indigo-600/20 rounded-full items-center justify-center mb-6">
                         <Play size={32} className="text-indigo-500" />
                     </View>
-                    <Text className="text-white text-xl font-bold mb-2">Watching Sponsored Video</Text>
+                    <Text className="text-white text-xl font-bold mb-2">Claiming Free Reward</Text>
                     <Text className="text-zinc-400 text-center mb-8">
-                        The reward will be granted after the video ends.
+                        {/* TODO: Update this text when real ads are integrated */}
+                        (Simulated Ad) The reward will be granted in a moment.
                     </Text>
                     
                     <AdTimer onComplete={() => {
