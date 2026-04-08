@@ -153,7 +153,7 @@ export const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
     const result = await generateMockup(productAsset, layers.map(l => ({
       asset: assets.find(a => a.id === l.assetId)!,
       placement: l
-    })), "Create a realistic product mockup.", GENERATION_COST);
+    })), "Create a realistic DeXify mockup.", GENERATION_COST);
 
     if (result) {
         navigation.navigate('Result', { result });
@@ -177,7 +177,7 @@ export const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
     const result = await generateMockup(productAsset, layers.map(l => ({
       asset: assets.find(a => a.id === l.assetId)!,
       placement: l
-    })), "Create a realistic product mockup.", 0); // 0 cost for retry
+    })), "Create a realistic DeXify mockup.", 0); // 0 cost for retry
 
     if (result) {
         navigation.navigate('Result', { result });
