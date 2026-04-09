@@ -1,7 +1,5 @@
 {
-  "name": "DeXify",
-  "description": "AI-Powered Product Design Studio",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "name": "",
+  "description": "",
+  "requestFramePermissions": []
 }

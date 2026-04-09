@@ -32,7 +32,7 @@ function getStripe(): Stripe {
       console.warn('STRIPE_SECRET_KEY is not set. Payments will fail.');
     }
     // We initialize it anyway so the app doesn't crash on startup, but it will fail on use if key is invalid
-    stripeClient = new Stripe(key || 'sk_test_placeholder', { apiVersion: '2025-02-24.acacia' });
+    stripeClient = new Stripe(key || 'sk_test_placeholder', { apiVersion: '2026-03-25.dahlia' });
   }
   return stripeClient;
 }

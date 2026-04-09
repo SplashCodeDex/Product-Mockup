@@ -21,6 +21,8 @@ export interface PlacedLayer {
   y: number; // percentage 0-100
   scale: number; // 1 = 100%
   rotation: number;
+  opacity?: number;
+  blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay';
 }
 
 export interface Draft {

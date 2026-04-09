@@ -42,6 +42,7 @@ export interface ScrollViewProps extends React.HTMLAttributes<HTMLDivElement> {
   horizontal?: boolean;
   showsHorizontalScrollIndicator?: boolean;
   showsVerticalScrollIndicator?: boolean;
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
   children?: React.ReactNode;
 }
 
@@ -191,7 +192,7 @@ export const TextInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<
 );
 
 // ScrollView: Handles scrolling with native feel.
-export const ScrollView = ({ 
+export const ScrollView = forwardRef<HTMLDivElement, ScrollViewProps>(({ 
   className = '', 
   style, 
   contentContainerStyle, 
@@ -200,7 +201,7 @@ export const ScrollView = ({
   showsVerticalScrollIndicator = true,
   children, 
   ...props 
-}: ScrollViewProps) => {
+}, ref) => {
   const scrollClass = horizontal 
     ? `overflow-x-auto flex-row ${!showsHorizontalScrollIndicator ? 'scrollbar-hide' : ''}` 
     : `overflow-y-auto flex-col ${!showsVerticalScrollIndicator ? 'scrollbar-hide' : ''}`;
@@ -209,6 +210,7 @@ export const ScrollView = ({
 
   return (
     <div 
+      ref={ref}
       className={`flex-1 flex flex-col relative ${scrollClass} ${className}`} 
       style={{
         ...style,
@@ -226,7 +228,7 @@ export const ScrollView = ({
       </div>
     </div>
   );
-};
+});
 
 // Slider: Native-like slider.
 export const Slider = ({

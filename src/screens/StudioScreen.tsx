@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, SafeAreaView } from '../components/ReactNative';
-import { ChevronLeft, Wallet, Settings2, ArrowDown, ArrowUp, Copy, Trash2, Plus, Wand2, Eraser, RotateCcw } from 'lucide-react';
+import { ChevronLeft, Wallet, Settings2, ArrowDown, ArrowUp, Copy, Trash2, Plus, Wand2, Eraser, RotateCcw, RotateCw } from 'lucide-react';
 import { NativeStackScreenProps } from '../components/Navigation';
 import { RootStackParamList, PlacedLayer, Asset } from '../types';
 import { useData } from '../providers/DataProvider';
@@ -72,6 +72,16 @@ export const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
     }
   };
 
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      Haptics.impactAsync(ImpactFeedbackStyle.Medium);
+      const next = historyIndex + 1;
+      setHistoryIndex(next);
+      setLayers(history[next]);
+      setActiveLayerId(null);
+    }
+  };
+
   const handleClearCanvas = () => {
       alert("Clear Canvas", "Remove all layers and reset draft?", [
           { text: "Cancel", style: "cancel"},
@@ -93,7 +103,9 @@ export const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
       x: 50,
       y: 50,
       scale: 1,
-      rotation: 0
+      rotation: 0,
+      opacity: 1,
+      blendMode: 'normal'
     };
     const newLayers = [...layers, newLayer];
     commitHistory(newLayers);
@@ -375,6 +387,8 @@ export const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
                         left: `${layer.x}%`,
                         top: `${layer.y}%`,
                         transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`,
+                        opacity: layer.opacity ?? 1,
+                        mixBlendMode: (layer.blendMode as any) || 'normal',
                         cursor: 'move',
                         touchAction: 'none'
                         }}
@@ -392,8 +406,11 @@ export const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
                 <TouchableOpacity onPress={handleClearCanvas} className="w-10 h-10 bg-zinc-800/80 rounded-full items-center justify-center shadow-lg">
                     <Eraser size={18} className="text-red-400" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={undo} disabled={historyIndex === 0} className="w-10 h-10 bg-zinc-800/80 rounded-full items-center justify-center shadow-lg">
-                    <RotateCcw size={18} className="text-white" />
+                <TouchableOpacity onPress={undo} disabled={historyIndex === 0} className={`w-10 h-10 rounded-full items-center justify-center shadow-lg ${historyIndex === 0 ? 'bg-zinc-800/40' : 'bg-zinc-800/80'}`}>
+                    <RotateCcw size={18} className={historyIndex === 0 ? 'text-zinc-600' : 'text-white'} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={redo} disabled={historyIndex === history.length - 1} className={`w-10 h-10 rounded-full items-center justify-center shadow-lg ${historyIndex === history.length - 1 ? 'bg-zinc-800/40' : 'bg-zinc-800/80'}`}>
+                    <RotateCw size={18} className={historyIndex === history.length - 1 ? 'text-zinc-600' : 'text-white'} />
                 </TouchableOpacity>
             </View>
         </View>
@@ -402,7 +419,7 @@ export const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
       {/* Controls Panel - Flexible height */}
       <View className="bg-zinc-950 border-t border-zinc-800 flex-shrink-0 pb-[env(safe-area-inset-bottom)]">
         {activeLayer ? (
-          <View className="p-4 h-56">
+          <ScrollView className="p-4 h-72">
              <View className="flex-row justify-between items-center mb-4">
                <Text className="font-bold text-white flex-row items-center"><Settings2 size={16} className="mr-2"/> Edit Layer</Text>
                <View className="flex-row items-center space-x-2">
@@ -453,7 +470,36 @@ export const StudioScreen = ({ navigation }: NativeStackScreenProps<RootStackPar
                   className="flex-1"
                 />
              </View>
-          </View>
+             <View className="flex-row items-center mb-4 space-x-4">
+                <Text className="text-zinc-400 w-16">Opacity</Text>
+                <Slider 
+                  value={activeLayer.opacity ?? 1}
+                  minimumValue={0.1}
+                  maximumValue={1}
+                  step={0.05}
+                  onValueChange={(val) => updateLayer(activeLayer.uid, { opacity: val })}
+                  onSlidingComplete={handleLayerChangeEnd}
+                  className="flex-1"
+                />
+             </View>
+             <View className="mb-6">
+                <Text className="text-zinc-400 mb-2">Blend Mode</Text>
+                <View className="flex-row space-x-2">
+                   {['normal', 'multiply', 'screen', 'overlay'].map(mode => (
+                      <TouchableOpacity 
+                        key={mode}
+                        onPress={() => {
+                          updateLayer(activeLayer.uid, { blendMode: mode as any });
+                          handleLayerChangeEnd();
+                        }}
+                        className={`px-3 py-1.5 rounded-lg border ${activeLayer.blendMode === mode || (!activeLayer.blendMode && mode === 'normal') ? 'bg-indigo-600 border-indigo-500' : 'bg-zinc-900 border-zinc-700'}`}
+                      >
+                        <Text className="text-white text-xs capitalize">{mode}</Text>
+                      </TouchableOpacity>
+                   ))}
+                </View>
+             </View>
+          </ScrollView>
         ) : (
           <View className="h-56">
              {/* Product Selection List */}

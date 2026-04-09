@@ -30,7 +30,7 @@ export const StoreScreen = ({ navigation }: NativeStackScreenProps<RootStackPara
     init();
 
     // Register Ad callback for web sandbox
-    adService.onShowAd = (onComplete) => {
+    (adService as any).onShowAd = (onComplete: (success: boolean) => void) => {
         setAdState({ visible: true, onComplete });
     };
   }, []);

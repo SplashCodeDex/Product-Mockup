@@ -17,15 +17,20 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { StoreScreen } from './screens/StoreScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { SplashScreen } from './screens/SplashScreen';
+import { OnboardingScreen } from './screens/OnboardingScreen';
 
 import { Button } from './components/ui/SharedUI';
 
-const Stack = createNativeStackNavigator();
+import { RootStackParamList } from './types';
 
-class ErrorBoundary extends React.Component<any, any> {
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, any> {
+  state = { hasError: false, error: null };
+  props: {children: React.ReactNode};
+
   constructor(props: any) {
     super(props);
-    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: any) {
@@ -67,9 +72,21 @@ class ErrorBoundary extends React.Component<any, any> {
 const AppNavigator = () => {
   const { user, isAuthReady } = useAuth();
   const { isDataReady } = useData();
+  const [hasSeenOnboarding, setHasSeenOnboarding] = React.useState(
+    localStorage.getItem('dexify_onboarding_complete') === 'true'
+  );
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem('dexify_onboarding_complete', 'true');
+    setHasSeenOnboarding(true);
+  };
 
   if (!isAuthReady || (user && !isDataReady)) {
     return <SplashScreen />;
+  }
+
+  if (!hasSeenOnboarding) {
+    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
 
   if (!user) {
